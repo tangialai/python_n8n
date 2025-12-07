@@ -301,6 +301,27 @@ def score_quality(roe, gross_m, profit_m):
 
     return score
 
+# ======================= Unified Decision Score =======================
+def unified_decision_score(tech, val, growth, quality, upside, rsi, vol_ratio):
+    # Individual normalized subscores
+    tech_norm = max(min(tech, 100), -50)        # Technical: strong influence
+    fundamental = val + growth + quality        # Company strength
+    upside_score = score_upside(upside)         # Analyst upside
+    vol_score = score_volume(vol_ratio)         # Confirmation by money flow
+    rsi_score = score_rsi(rsi)                  # Entry timing
+
+    # Weighted combination
+    decision_raw = (
+        0.35 * tech_norm +
+        0.25 * fundamental +
+        0.20 * upside_score +
+        0.10 * vol_score +
+        0.10 * rsi_score
+    )
+
+    # Normalize into 0–100
+    decision_norm = max(min(decision_raw, 100), -50)
+    return decision_norm
 
 # ======================= Technical Signal =======================
 # Chuyển điểm TechnicalScore → tín hiệu ngắn hạn:
@@ -330,22 +351,18 @@ def get_signal(score):
 # >=55 → WATCH
 # >=40 → SELL
 # thấp hơn → STRONG SELL
-def final_decision_signal(total_score, upside, yf_rec_key):
-    upside = safe_float(upside)
-    key = (yf_rec_key or "").lower()
-
-    if total_score is None:
-        return ""
-
-    if total_score >= 85 and upside is not None and upside >= 20:
+def final_decision_signal_v2(score):
+    if score >= 80:
         return "STRONG BUY"
-    if total_score >= 70 and upside is not None and upside >= 10:
+    elif score >= 65:
         return "BUY"
-    if total_score >= 55:
+    elif score >= 55:
         return "WATCH"
-    if total_score >= 40:
+    elif score >= 45:
         return "SELL"
-    return "STRONG SELL"
+    else:
+        return "STRONG SELL"
+
 
 def get_stock(symbol: str):
     try:
@@ -442,7 +459,18 @@ def get_stock(symbol: str):
         quality_score = score_quality(roe, gross_margins, profit_margins)
 
         total_score = tech_score + val_score + growth_score + quality_score
-        decision_signal = final_decision_signal(total_score, upside, info.get("recommendationKey"))
+        # === DECISION ENGINE 2.0 ===
+        decision_score = unified_decision_score(
+            tech_score,
+            val_score,
+            growth_score,
+            quality_score,
+            upside,
+            rsi14,
+            vol_ratio
+        )
+
+        decision_signal = final_decision_signal_v2(decision_score)
 
         return {
             "symbol": symbol,
@@ -492,6 +520,7 @@ def get_stock(symbol: str):
             "GrowthScore": growth_score,
             "QualityScore": quality_score,
             "TotalScore": total_score,
+            "DecisionScore": round(decision_score, 2),
             "DecisionSignal": decision_signal,
 
             # === TECHNICAL OUTPUT (DETAIL) ===
