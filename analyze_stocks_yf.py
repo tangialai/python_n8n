@@ -47,169 +47,183 @@ def format_yf_recommendation(key):
         return "NONE"
     return key.replace("_", " ").upper()
 
-# ====== Technical Indicators ======
+# ====== Technical Indicators & Scoring Engine ======
+# All scores are designed so that:
+#   - TechnicalScore roughly ranges from about -25 to +30
+#   - FundamentalScore (Valuation + Growth + Quality) roughly ranges from about -25 to +30
+#   - Upside / Volume / RSI provide additional fine‑tuning
+# This keeps the unified DecisionScore stable around a 0–100 scale.
 
 # ======================= RSI Score =======================
-# RSI14 – đo mức độ overbought / oversold
-# - Rất thấp (oversold mạnh) → ưu tiên mua (điểm cao)
-# - Trung tính → điểm nhỏ
-# - Rất cao (overbought mạnh) → rủi ro điều chỉnh (trừ điểm)
+# RSI14 – measures overbought / oversold
+#   < 30  : strongly oversold  → positive score (potential buy zone)
+#   30–40 : mildly oversold    → small positive score
+#   40–60 : neutral             → very small bias
+#   60–70 : mildly overbought   → small negative score
+#   > 70  : strongly overbought → stronger negative score
 def score_rsi(rsi):
     if rsi is None:
         return 0
-    if rsi < 25:
-        return 18      # oversold rất mạnh, cơ hội bắt đáy
     if rsi < 30:
-        return 12
+        return 8
     if rsi < 40:
-        return 6
+        return 4
     if rsi < 60:
-        return 3       # vùng trung tính
+        return 2
     if rsi < 70:
-        return -3      # hơi cao, cẩn trọng
-    if rsi < 80:
-        return -8
-    return -15         # rất cao, dễ bị xả
+        return -4
+    return -8
 
 
 # ======================= MACD Score =======================
-# MACD đánh giá xu hướng/động lượng:
-# - MACD > Signal và Histogram > 0 → uptrend mạnh
-# - MACD > Signal → uptrend vừa
-# - MACD < Signal, Hist < 0 → downtrend mạnh
+# MACD evaluates trend strength / momentum:
+#   macd > signal and hist > 0  : strong uptrend   → +8
+#   macd > signal               : mild uptrend     → +4
+#   macd < signal and hist < 0  : strong downtrend → -6
+#   otherwise                   : neutral
 def score_macd(macd, signal, hist):
     if macd is None or signal is None or hist is None:
         return 0
     if macd > signal and hist > 0:
-        return 15
+        return 8
     if macd > signal:
-        return 10
+        return 4
     if macd < signal and hist < 0:
-        return -10
+        return -6
     return 0
 
 
 # ======================= Trend Score (SMA/EMA) =======================
-# Đánh giá xu hướng trung hạn:
-# - Price > SMA20 > SMA50 và EMA20 > EMA50 → Uptrend mạnh.
-# - Nếu chỉ thỏa một phần → cộng ít điểm.
-# - Ngược lại → trừ điểm nhẹ (không quá nặng tay).
+# Trend score looks at medium‑term structure:
+#   Price > SMA20 > SMA50 and EMA20 > EMA50 -> strong uptrend   → +10
+#   Price > SMA20 and EMA20 > EMA50        -> healthy uptrend   → +6
+#   Price > SMA50                          -> still constructive→ +3
+#   Clear downtrend (SMA20 < SMA50, EMA20 < EMA50, price < SMA20) → -6
+#   Otherwise                                                 → 0
 def score_trend(price, sma20, sma50, ema20, ema50):
     if None in (price, sma20, sma50, ema20, ema50):
         return 0
 
-    score = 0
+    # Strong bullish structure
+    if price > sma20 > sma50 and ema20 > ema50:
+        return 10
 
-    # Cấu trúc SMA (trung hạn)
-    if price > sma20 and sma20 > sma50:
-        score += 12     # uptrend mạnh
-    elif price > sma20:
-        score += 6      # giá nằm trên SMA20, hơi tích cực
-    elif sma20 > sma50:
-        score += 4      # SMA20 > SMA50, xu hướng dài trung hạn vẫn tốt
-    else:
-        score -= 5      # xu hướng yếu
+    # Decent bullish structure
+    if price > sma20 and ema20 > ema50:
+        return 6
 
-    # Cấu trúc EMA (ngắn hạn)
-    if ema20 > ema50:
-        score += 8
-    elif price > ema20:
-        score += 4
-    else:
-        score -= 5
+    # Price above long/medium‑term average is still constructive
+    if price > sma50:
+        return 3
 
-    return score
+    # Clear downtrend: both MAs pointing lower and price under short MA
+    if sma20 < sma50 and ema20 < ema50 and price < sma20:
+        return -6
+
+    return 0
 
 
 # ======================= Bollinger Bands Score =======================
-# Đánh giá vị trí giá trong dải BB:
-# - Trên mid → hơi bullish
-# - Dưới mid → hơi bearish
-# - Chạm Lower band → oversold
-# - Chạm Upper band → overbought
+# Position of price inside Bollinger Bands (20, 2):
+#   Price <= lower band : strongly oversold  → +4
+#   Price >= upper band : strongly overbought→ -4
+#   Price > middle band : slightly bullish   → +1
+#   Price < middle band : slightly bearish   → -1
 def score_bb(price, bb_mid, bb_low, bb_up):
     if None in (price, bb_mid, bb_low, bb_up):
         return 0
 
     score = 0
 
-    # Giá so với đường giữa
-    if price > bb_mid:
-        score += 3
-    else:
-        score -= 3
-
-    # Gần/đụng Lower/Upper band
     if price <= bb_low:
-        score += 5      # rất oversold
+        score += 4
     if price >= bb_up:
-        score -= 5      # rất overbought
+        score -= 4
+
+    if price > bb_mid:
+        score += 1
+    else:
+        score -= 1
 
     return score
 
 
 # ======================= Risk Score (ATR/Price) =======================
-# Độ biến động tương đối:
-# - ATR/Price thấp → cổ phiếu "êm", ít rung lắc → dễ nắm giữ → cộng điểm.
-# - ATR/Price cao → biến động mạnh → trừ điểm nhưng không quá nặng.
+# Relative volatility (daily range vs price):
+#   ATR/Price < 2%  : calm / easier to hold  → +3
+#   2–4%            : normal                 → 0
+#   > 4%            : highly volatile        → -4
 def score_risk(atr14, price):
     if atr14 is None or price is None or price == 0:
         return 0
     risk = atr14 / price
-    if risk < 0.01:
-        return 8
     if risk < 0.02:
-        return 4
-    if risk < 0.03:
+        return 3
+    if risk < 0.04:
         return 0
-    return -8
+    return -4
 
 
 # ======================= Volume Ratio Score =======================
-# VolumeRatio = Volume hiện tại / Volume trung bình 20 ngày
-# - >1.5 → dòng tiền vào mạnh (breakout) → +6
-# - >1.0 → dòng tiền xác nhận xu hướng → +3
-# - <0.7 → volume yếu, tín hiệu kém tin cậy → -5
+# VolumeRatio = current volume / 20‑day average volume
+#   > 2.0 : very strong money inflow / breakout   → +6
+#   1.5–2 : strong confirmation of move          → +4
+#   1.0–1.5 : healthy participation              → +2
+#   0.7–1.0 : normal / neutral                   → 0
+#   < 0.7 : weak participation                   → -3
 def score_volume(vr):
     if vr is None:
         return 0
-    if vr > 1.5:
+    if vr > 2.0:
         return 6
+    if vr > 1.5:
+        return 4
     if vr > 1.0:
-        return 3
-    if vr < 0.7:
-        return -5
-    return 0
+        return 2
+    if vr >= 0.7:
+        return 0
+    return -3
 
 
 # ======================= Upside Score =======================
-# Upside dựa trên TargetMeanPrice (% so với giá hiện tại)
-# - >30% → tiềm năng rất tốt
-# - >20% → tốt
-# - >10% → tạm ổn
-# - >0 → hơi tốt
-# - <0 → bị định giá cao hơn target → trừ điểm nhưng không quá nặng
+# Upside (%) between current price and analyst average target:
+#   > 40% : very attractive upside       → +18
+#   30–40%: strong upside                → +14
+#   20–30%: good upside                  → +10
+#   10–20%: moderate upside              → +6
+#   0–10% : slightly positive            → +3
+#   < 0   : priced above target (stretched) → -6
 def score_upside(u):
     if u is None:
         return 0
+    if u > 40:
+        return 18
     if u > 30:
-        return 22
+        return 14
     if u > 20:
-        return 16
-    if u > 10:
         return 10
+    if u > 10:
+        return 6
     if u > 0:
-        return 5
-    return -8
+        return 3
+    return -6
 
 
 # ======================= Valuation Score (PEG, PE) =======================
-# Đánh giá định giá:
-# - PEG <=1 → rất rẻ so với tăng trưởng → +20
-# - PEG <=1.5 → chấp nhận được → +10
-# - PEG >=2.5 → khá đắt → -10
-# - Forward PE <=25 → hợp lý → +8; >=40 → đắt → -8
-# - Trailing PE >=45 → quá đắt → -5
+# Valuation is kept more moderate to avoid over‑penalizing growth stocks.
+# PEG:
+#   <= 1.0 : very attractive vs growth   → +10
+#   1.0–1.5: reasonable                  → +6
+#   1.5–2.5: acceptable                  → +2
+#   > 3.5  : clearly expensive           → -6
+#
+# Forward PE:
+#   < 20   : cheap / reasonable          → +6
+#   20–30 : fair                         → +3
+#   > 45  : rich                         → -6
+#
+# Trailing PE:
+#   > 50  : very expensive on past earnings → -4
 def score_valuation(peg, pe_fwd, pe_trailing):
     peg = safe_float(peg)
     pe_fwd = safe_float(pe_fwd)
@@ -217,60 +231,88 @@ def score_valuation(peg, pe_fwd, pe_trailing):
     score = 0
 
     if peg is not None:
-        if peg <= 1:
-            score += 20
-        elif peg <= 1.5:
+        if peg <= 1.0:
             score += 10
-        elif peg >= 2.5:
-            score -= 10
+        elif peg <= 1.5:
+            score += 6
+        elif peg <= 2.5:
+            score += 2
+        elif peg > 3.5:
+            score -= 6
 
     if pe_fwd is not None:
-        if pe_fwd <= 25:
-            score += 8
-        elif pe_fwd >= 40:
-            score -= 8
+        if pe_fwd < 20:
+            score += 6
+        elif pe_fwd <= 30:
+            score += 3
+        elif pe_fwd > 45:
+            score -= 6
 
-    if pe_trailing is not None and pe_trailing >= 45:
-        score -= 5
+    if pe_trailing is not None and pe_trailing > 50:
+        score -= 4
 
     return score
 
 
 # ======================= Growth Score (Revenue, Earnings) =======================
-# revenueGrowth / earningsGrowth là dạng 0.x (tương đương x%)
-# - Revenue >=15% → +10, >=8% → +5, <=0 → -10
-# - Earnings >=20% → +10, >=10% → +5, <=0 → -10
+# revenueGrowth / earningsGrowth are decimals (0.20 = 20% YoY).
+# Revenue growth:
+#   >= 20% : strong top‑line growth      → +8
+#   10–20% : good                        → +4
+#   0–10%  : mildly positive             → +1
+#   < 0    : shrinking revenue           → -6
+#
+# Earnings growth:
+#   >= 25% : very strong earnings growth → +8
+#   12–25% : good                        → +4
+#   0–12%  : mildly positive             → +1
+#   < 0    : shrinking earnings          → -8
 def score_growth(rev_g, earn_g):
     rev_g = safe_float(rev_g)
     earn_g = safe_float(earn_g)
     score = 0
 
     if rev_g is not None:
-        if rev_g >= 0.15:
-            score += 10
-        elif rev_g >= 0.08:
-            score += 5
-        elif rev_g <= 0:
-            score -= 10
+        if rev_g >= 0.20:
+            score += 8
+        elif rev_g >= 0.10:
+            score += 4
+        elif rev_g >= 0:
+            score += 1
+        else:
+            score -= 6
 
     if earn_g is not None:
-        if earn_g >= 0.20:
-            score += 10
-        elif earn_g >= 0.10:
-            score += 5
-        elif earn_g <= 0:
-            score -= 10
+        if earn_g >= 0.25:
+            score += 8
+        elif earn_g >= 0.12:
+            score += 4
+        elif earn_g >= 0:
+            score += 1
+        else:
+            score -= 8
 
     return score
 
 
-# ======================= Quality Score (ROE, Margin) =======================
-# ROE (returnOnEquity):
-#   >=40% → +10, >=20% → +5, <=10% → -5
-# Gross Margin:
-#   >=50% → +5, >=35% → +3, <=20% → -5
-# Profit Margin:
-#   >=25% → +5, >=15% → +3, <=5% → -5
+# ======================= Quality Score (ROE, Margins) =======================
+# ROE (returnOnEquity, decimal):
+#   >= 25% : excellent capital efficiency → +8
+#   15–25% : good                         → +4
+#   8–15%  : acceptable                   → +1
+#   < 5%   : weak                         → -6
+#
+# Gross margin:
+#   >= 55% : very strong moat             → +4
+#   40–55% : healthy                      → +2
+#   25–40% : neutral                      → 0
+#   < 25%  : structurally weak            → -4
+#
+# Profit margin:
+#   >= 22% : very profitable              → +4
+#   12–22% : good                         → +2
+#   0–12%  : low but positive             → 0
+#   < 0    : loss‑making                  → -6
 def score_quality(roe, gross_m, profit_m):
     roe = safe_float(roe)
     gross_m = safe_float(gross_m)
@@ -278,74 +320,75 @@ def score_quality(roe, gross_m, profit_m):
     score = 0
 
     if roe is not None:
-        if roe >= 0.40:
-            score += 10
-        elif roe >= 0.20:
-            score += 5
-        elif roe <= 0.10:
-            score -= 5
+        if roe >= 0.25:
+            score += 8
+        elif roe >= 0.15:
+            score += 4
+        elif roe >= 0.08:
+            score += 1
+        elif roe < 0.05:
+            score -= 6
 
     if gross_m is not None:
-        if gross_m >= 0.50:
-            score += 5
-        elif gross_m >= 0.35:
-            score += 3
-        elif gross_m <= 0.20:
-            score -= 5
+        if gross_m >= 0.55:
+            score += 4
+        elif gross_m >= 0.40:
+            score += 2
+        elif gross_m < 0.25:
+            score -= 4
 
     if profit_m is not None:
-        if profit_m >= 0.25:
-            score += 5
-        elif profit_m >= 0.15:
-            score += 3
-        elif profit_m <= 0.05:
-            score -= 5
+        if profit_m >= 0.22:
+            score += 4
+        elif profit_m >= 0.12:
+            score += 2
+        elif profit_m < 0:
+            score -= 6
 
     return score
 
 
 # ======================= Unified Decision Score =======================
-# Mục tiêu: tạo DecisionScore ~ 0–100
-# - ~50: trung tính (HOLD / WATCH)
-# - >65: nên BUY
-# - >80: STRONG BUY
-# TechScore thường dao động khoảng [-40, +100]
-# FundamentalScore (Val + Growth + Quality) thường khoảng [-40, +100]
+# Goal: create a 0–100 DecisionScore that blends:
+#   - Technicals (price action & indicators)
+#   - Fundamentals (valuation, growth, quality)
+#   - Analyst upside (target price vs current)
+#   - Volume & RSI (timing / money flow)
+#
+# Weighting for Balanced Style (Version B):
+#   25%  TechnicalScore
+#   30%  FundamentalScore (Valuation + Growth + Quality)
+#   35%  UpsideScore (analyst targets)
+#   10%  Volume + RSI (5% each)
+#
+# Typical raw range is roughly [-30, +40].
+# We clamp to [-30, +40] and then rescale into [0, 100].
 def unified_decision_score(tech, val, growth, quality, upside, rsi, vol_ratio):
-    # Chuẩn hoá các thành phần về biên an toàn
-    tech_norm = max(min(tech, 80), -40)
-    fundamental = max(min(val + growth + quality, 80), -40)
+    # Normalize technical and fundamental ranges to avoid extremes dominating.
+    tech_norm = max(min(tech, 30), -25)
+    fundamental = max(min(val + growth + quality, 30), -25)
 
     upside_score = score_upside(upside)
     vol_score = score_volume(vol_ratio)
     rsi_score = score_rsi(rsi)
 
-    # Trọng số:
-    #  - 35% kỹ thuật (tech_norm)
-    #  - 35% nền tảng (fundamental)
-    #  - 20% upside theo analyst
-    #  - 5% volume (xác nhận dòng tiền)
-    #  - 5% RSI (thời điểm vào lệnh)
     decision_raw = (
-        0.35 * tech_norm +
-        0.35 * fundamental +
-        0.20 * upside_score +
+        0.25 * tech_norm +
+        0.30 * fundamental +
+        0.35 * upside_score +
         0.05 * vol_score +
         0.05 * rsi_score
     )
 
-    # Quy đổi về thang 0–100:
-    # Giả định decision_raw ~ [-60, +100]
-    #  -60  → 0
-    #  +100 → 100
-    raw_min, raw_max = -60.0, 100.0
+    # Convert to 0–100 band.
+    raw_min, raw_max = -30.0, 40.0
     decision_clamped = max(min(decision_raw, raw_max), raw_min)
     decision_norm = (decision_clamped - raw_min) / (raw_max - raw_min) * 100.0
 
     return decision_norm
 
 
-# ======================= Technical Signal (chỉ dùng TechScore) =======================
+# ======================= Technical Signal (only TechnicalScore) =======================
 def get_signal(score):
     if score is None:
         return ""
@@ -361,13 +404,13 @@ def get_signal(score):
         return "STRONG SELL"
 
 
-# ======================= Final Decision Signal (dùng DecisionScore 0–100) =======================
-# DecisionScore:
-#   >=80 → STRONG BUY
-#   >=65 → BUY
-#   >=50 → WATCH (giữ / theo dõi)
-#   >=40 → SELL (cân nhắc thoát bớt)
-#   <40  → STRONG SELL (tránh / thoát)
+# ======================= Final Decision Signal (based on DecisionScore 0–100) =======================
+# DecisionScore mapping:
+#   >= 80 : STRONG BUY  – strong fundamentals + technicals + upside
+#   >= 65 : BUY         – positive skew overall
+#   >= 50 : WATCH       – hold / monitor, not a clear edge
+#   >= 40 : SELL        – reduce exposure / be cautious
+#   <  40 : STRONG SELL – avoid / exit unless special thesis
 def final_decision_signal_v2(score):
     if score is None:
         return ""
