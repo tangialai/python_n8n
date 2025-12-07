@@ -214,15 +214,19 @@ def get_stock(symbol: str):
     "changePercent": r_pct(info.get("regularMarketChangePercent")),
     "dayHigh": round(info.get("regularMarketDayHigh"), 2) if info.get("regularMarketDayHigh") else None,
     "dayLow": round(info.get("regularMarketDayLow"), 2) if info.get("regularMarketDayLow") else None,
+    "avg50days": round(info.get("fiftyDayAverage"), 2) if info.get("fiftyDayAverage") else None,
 
     # === TARGET PRICE ===
     "targetLow": round(info.get("targetLowPrice"), 2) if info.get("targetLowPrice") else None,
     "targetAvg": round(target_avg, 2) if target_avg else None,
     "targetHigh": round(info.get("targetHighPrice"), 2) if info.get("targetHighPrice") else None,
     "upside": round(upside, 2) if upside is not None else None,
+    "yfRecommendation": info.get("recommendationKey"),
+    "numberAnalyst": info.get("numberOfAnalystOpinions"),
 
     # === RECOMMENDATION ===
     "recommendation": recommend(peg, upside),
+
 
     # === FINAL SCORE ===
     "TechnicalScore": tech_score,
