@@ -504,15 +504,14 @@ def get_stock(symbol: str):
         vol_avg20 = volume.rolling(20).mean().iloc[-1]
         vol_ratio = volume.iloc[-1] / vol_avg20 if vol_avg20 else None
 
-        # === CALCULATE TECHNICAL SCORE ===
+        # === CALCULATE TECHNICAL SCORE (OPTIMIZED) ===
         tech_score = (
-            score_rsi(rsi14) +
-            score_macd(macd, signal, hist) +
-            score_trend(price, sma20, sma50, ema20, ema50) +
-            score_bb(price, bb_mid, bb_low, bb_up) +
-            score_risk(atr14, price) +
-            score_volume(vol_ratio) +
-            score_upside(upside)
+                score_rsi(rsi14) +
+                score_macd(macd, signal, hist) +
+                score_trend(price, sma20, sma50, ema20, ema50) +
+                score_bb(price, bb_mid, bb_low, bb_up) +
+                score_risk(atr14, price) +
+                score_volume(vol_ratio)
         )
 
         # === FUNDAMENTAL SCORES ===
