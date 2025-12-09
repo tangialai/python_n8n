@@ -1,4 +1,4 @@
-#!/opt/docker-n8n/python_n8n/venv/bin/python3
+#!/Users/ryantanmai/PROJECTS/n8n/python_n8n/venv/bin/python3.13
 import sys
 from charset_normalizer.cli import cli_detect
 if __name__ == '__main__':
