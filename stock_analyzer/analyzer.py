@@ -60,9 +60,14 @@ def analyze_single_stock(symbol: str) -> Dict[str, Any]:
         total_score = max(0.0, tech_score["total"] + fund_score["total"])
         decision = make_decision(total_score)
 
+        clean_snapshot = {
+            k: v for k, v in snapshot.items()
+            if k not in ("info_raw", "raw", "full_info", "yf_info")
+        }
+
         return {
             "symbol": symbol,
-            "snapshot": snapshot,
+            "snapshot": clean_snapshot,
             "technical": {
                 "trend": trend,
                 "momentum": momentum,
