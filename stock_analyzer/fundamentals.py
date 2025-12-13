@@ -57,5 +57,5 @@ def extract_fundamentals(snapshot: Dict[str, Any]) -> Dict[str, Any]:
         "target_high": target_high,
         "target_low": target_low,
         "upside_pct": upside_pct,
-        "recommendation_key": recommendation_key,
+        "yf_recommendation": recommendation_key,
     }
