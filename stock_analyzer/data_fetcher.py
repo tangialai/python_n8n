@@ -63,7 +63,7 @@ def fetch_snapshot(symbol: str) -> Dict[str, Any]:
             info_raw = ticker.get_info()
         except Exception:
             info_raw = {}
-
+    company = info_raw.get("shortName")
     price = safe_float(info_raw.get("currentPrice") or info_raw.get("regularMarketPrice"))
     day_high = safe_float(info_raw.get("dayHigh"))
     day_low = safe_float(info_raw.get("dayLow"))
@@ -77,6 +77,7 @@ def fetch_snapshot(symbol: str) -> Dict[str, Any]:
 
     snapshot: Dict[str, Any] = {
         "symbol": symbol,
+        "company": company,
         "price": price,
         "day_high": day_high,
         "day_low": day_low,
