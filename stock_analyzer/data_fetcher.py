@@ -64,6 +64,8 @@ def fetch_snapshot(symbol: str) -> Dict[str, Any]:
         except Exception:
             info_raw = {}
     company = info_raw.get("shortName")
+    change = safe_float(info_raw.get("regularMarketChange"))
+    change_pct = safe_float(info_raw.get("regularMarketChangePercent"))
     price = safe_float(info_raw.get("currentPrice") or info_raw.get("regularMarketPrice"))
     day_high = safe_float(info_raw.get("dayHigh"))
     day_low = safe_float(info_raw.get("dayLow"))
@@ -74,10 +76,13 @@ def fetch_snapshot(symbol: str) -> Dict[str, Any]:
     market_cap = safe_float(info_raw.get("marketCap"))
     avg_volume_10d = safe_float(info_raw.get("averageDailyVolume10Day"))
     avg_volume_3m = safe_float(info_raw.get("averageVolume"))
+    avg_50days = safe_float(info_raw.get("fiftyDayAverage"))
 
     snapshot: Dict[str, Any] = {
         "symbol": symbol,
         "company": company,
+        "change": change,
+        "change_pct": change_pct,
         "price": price,
         "day_high": day_high,
         "day_low": day_low,
@@ -86,6 +91,7 @@ def fetch_snapshot(symbol: str) -> Dict[str, Any]:
         "market_cap": market_cap,
         "avg_volume_10d": avg_volume_10d,
         "avg_volume_3m": avg_volume_3m,
+        "avg_50days": avg_50days,
         "info_raw": info_raw,
     }
     return snapshot
