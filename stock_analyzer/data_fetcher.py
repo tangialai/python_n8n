@@ -64,8 +64,8 @@ def fetch_snapshot(symbol: str) -> Dict[str, Any]:
         except Exception:
             info_raw = {}
     company = info_raw.get("shortName")
-    change = safe_float(info_raw.get("regularMarketChange"))
-    change_pct = safe_float(info_raw.get("regularMarketChangePercent"))
+    change = round2(safe_float(info_raw.get("regularMarketChange")))
+    change_pct = round2(safe_float(info_raw.get("regularMarketChangePercent")))
     price = safe_float(info_raw.get("currentPrice") or info_raw.get("regularMarketPrice"))
     day_high = safe_float(info_raw.get("dayHigh"))
     day_low = safe_float(info_raw.get("dayLow"))
