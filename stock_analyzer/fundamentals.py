@@ -21,7 +21,7 @@ Sau đó tính thêm:
 
 from typing import Dict, Any
 
-from .utils import safe_float, percent_change
+from .utils import safe_float, percent_change, round2
 
 
 def extract_fundamentals(snapshot: Dict[str, Any]) -> Dict[str, Any]:
@@ -37,13 +37,13 @@ def extract_fundamentals(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     revenue_growth = safe_float(info.get("revenueGrowth"))
     earnings_growth = safe_float(info.get("earningsGrowth"))
 
-    target_mean = safe_float(info.get("targetMeanPrice"))
-    target_high = safe_float(info.get("targetHighPrice"))
-    target_low = safe_float(info.get("targetLowPrice"))
+    target_mean = round2(safe_float(info.get("targetMeanPrice")))
+    target_high = round2(safe_float(info.get("targetHighPrice")))
+    target_low = round2(safe_float(info.get("targetLowPrice")))
     recommendation_key = info.get("recommendationKey")
 
     price = snapshot.get("price")
-    upside_pct = percent_change(target_mean, price) if price and target_mean else None
+    upside_pct = round2(percent_change(target_mean, price)) if price and target_mean else None
 
     return {
         "trailing_pe": trailing_pe,

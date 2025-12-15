@@ -28,6 +28,8 @@ def safe_float(value):
     except Exception:
         return None
 
+def round2(v):
+    return round(v, 2) if isinstance(v, (int, float)) else None
 
 def percent_change(current: float, base: float) -> Optional[float]:
     """
