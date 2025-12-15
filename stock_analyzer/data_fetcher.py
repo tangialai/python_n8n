@@ -14,7 +14,7 @@ from typing import Dict, Any
 import yfinance as yf
 import pandas as pd
 
-from .utils import safe_float
+from .utils import safe_float, round2
 
 
 def fetch_price_history(
